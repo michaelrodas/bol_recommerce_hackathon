@@ -28,6 +28,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 10
+    entrypoint: ["/bin/sh", "-c", "ollama serve & sleep 5 && ollama pull qwen2.5:3b-instruct && wait"]
 
   # One-shot service that pulls the required models once Ollama is healthy
   ollama-init:

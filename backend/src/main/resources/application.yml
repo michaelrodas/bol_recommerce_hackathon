@@ -16,8 +16,8 @@ spring:
       base-url: ${OLLAMA_BASE_URL:http://localhost:11434}
       chat:
         options:
-          model: llama3.2          # change to any model you have pulled
-          temperature: 0.2         # low temperature for factual answers
+          model: qwen2.5:3b-instruct         # change to any model you have pulled
+          temperature: 0.8         # low temperature for factual answers
       embedding:
         options:
           model: nomic-embed-text  # 768-dim embedding model
