@@ -21,6 +21,7 @@ spring:
       embedding:
         options:
           model: nomic-embed-text  # 768-dim embedding model
+          num-ctx: 2048            # explicit context window for nomic-embed-text
 
     # pgvector store settings
     vectorstore:

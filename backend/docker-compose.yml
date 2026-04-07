@@ -22,17 +22,22 @@ services:
     ports:
       - "11434:11434"
     volumes:
-      - ollama_data:/root/.ollama   # persists downloaded models across restarts
+      - ollama_data:/root/.ollama
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:11434/api/tags || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
 
-  # One-shot service that pulls the required models after Ollama starts
+  # One-shot service that pulls the required models once Ollama is healthy
   ollama-init:
     image: ollama/ollama:latest
     container_name: localrag-ollama-init
     depends_on:
-      - ollama
+      ollama:
+        condition: service_healthy
     entrypoint: >
       /bin/sh -c "
-        sleep 5 &&
         ollama pull llama3.2 &&
         ollama pull nomic-embed-text
       "

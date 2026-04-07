@@ -32,10 +32,10 @@ class DocumentIngestionService(
         val reader = PagePdfDocumentReader(resource, config)
         val pages: List<Document> = reader.get()
 
-        // Split pages into smaller token-based chunks for better retrieval
+        // 256 tokens per chunk — stays well within nomic-embed-text's 2048-token context window
         val splitter = TokenTextSplitter(
-            /* defaultChunkSize */ 512,
-            /* minChunkSizeChars */ 100,
+            /* defaultChunkSize */ 256,
+            /* minChunkSizeChars */ 50,
             /* minChunkLengthToEmbed */ 5,
             /* maxNumChunks */ 10000,
             /* keepSeparator */ true

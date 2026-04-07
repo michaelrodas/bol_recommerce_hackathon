@@ -69,6 +69,34 @@
   box-shadow: 0 2px 5px rgba(0,0,0,0.02);
 }
 
+.message-text {
+  margin-bottom: 0.5rem;
+}
+
+.message-sources {
+  margin-top: 1rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid #eaeaea;
+  font-size: 0.85rem;
+  color: #666;
+}
+
+.message-sources strong {
+  display: block;
+  margin-bottom: 0.25rem;
+  color: #555;
+}
+
+.message-sources ul {
+  margin: 0;
+  padding-left: 1.25rem;
+}
+
+.message-sources li {
+  margin-bottom: 0.25rem;
+  word-break: break-all;
+}
+
 .typing-indicator {
   display: flex;
   gap: 0.25rem;

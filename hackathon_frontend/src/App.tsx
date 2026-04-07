@@ -5,6 +5,7 @@ interface Message {
   id: string;
   text: string;
   sender: 'user' | 'ai';
+  sources?: string[];
 }
 
 function App() {
@@ -61,6 +62,7 @@ function App() {
         id: Date.now().toString(),
         text: data.answer || data.response || data.message || "I couldn't find an answer.",
         sender: 'ai',
+        sources: data.sources || [],
       };
 
       setMessages((prev) => [...prev, aiResponse]);
@@ -87,7 +89,17 @@ function App() {
         {messages.map((message) => (
           <div key={message.id} className={`message-wrapper ${message.sender}`}>
             <div className={`message ${message.sender}`}>
-              {message.text}
+              <div className="message-text">{message.text}</div>
+              {message.sources && message.sources.length > 0 && (
+                <div className="message-sources">
+                  <strong>Sources:</strong>
+                  <ul>
+                    {message.sources.map((source, index) => (
+                      <li key={index}>{source}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
             </div>
           </div>
         ))}
