@@ -1,0 +1,54 @@
+spring:
+  application:
+    name: localrag
+
+  # --- PostgreSQL datasource (used by pgvector store) ---
+  datasource:
+    url: jdbc:postgresql://localhost:5432/ragdb
+    username: postgres
+    password: postgres
+    driver-class-name: org.postgresql.Driver
+
+  # --- Spring AI ---
+  ai:
+    # Ollama runs locally at http://localhost:11434
+    ollama:
+      base-url: ${OLLAMA_BASE_URL:http://localhost:11434}
+      chat:
+        options:
+          model: llama3.2          # change to any model you have pulled
+          temperature: 0.2         # low temperature for factual answers
+      embedding:
+        options:
+          model: nomic-embed-text  # 768-dim embedding model
+
+    # pgvector store settings
+    vectorstore:
+      pgvector:
+        initialize-schema: true     # auto-creates the vector table on startup
+        index-type: HNSW            # fast approximate nearest-neighbour index
+        distance-type: COSINE_DISTANCE
+        dimensions: 768             # must match nomic-embed-text output dimension
+
+  # Multipart upload limit (increase if you have large PDFs)
+  servlet:
+    multipart:
+      max-file-size: 50MB
+      max-request-size: 100MB
+
+rag:
+  top-k: 5   # number of chunks retrieved from the vector store per query
+
+server:
+  port: 8080
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+  api-docs:
+    path: /api-docs
+
+logging:
+  level:
+    com.bol.service: DEBUG
+    org.springframework.ai: INFO

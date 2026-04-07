@@ -1,0 +1,45 @@
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: localrag-postgres
+    environment:
+      POSTGRES_DB: ragdb
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  ollama:
+    image: ollama/ollama:latest
+    container_name: localrag-ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama   # persists downloaded models across restarts
+
+  # One-shot service that pulls the required models after Ollama starts
+  ollama-init:
+    image: ollama/ollama:latest
+    container_name: localrag-ollama-init
+    depends_on:
+      - ollama
+    entrypoint: >
+      /bin/sh -c "
+        sleep 5 &&
+        ollama pull llama3.2 &&
+        ollama pull nomic-embed-text
+      "
+    environment:
+      - OLLAMA_HOST=http://ollama:11434
+    restart: "no"
+
+volumes:
+  pgdata:
+  ollama_data:
