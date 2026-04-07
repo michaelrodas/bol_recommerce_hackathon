@@ -41,16 +41,42 @@ function App() {
     setInput('');
     setIsLoading(true);
 
-    // Simulate API call to backend
-    setTimeout(() => {
+    try {
+      // TODO: Replace with your actual backend URL
+      const response = await fetch('http://localhost:8080/api/chat', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        // TODO: Adjust the request payload structure based on your backend API
+        body: JSON.stringify({ prompt: userMessage.text }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`API error: ${response.statusText}`);
+      }
+
+      // TODO: Adjust how you read the response data based on your backend API
+      const data = await response.json();
+
       const aiResponse: Message = {
-        id: (Date.now() + 1).toString(),
-        text: `This is a simulated AI response to: "${userMessage.text}". Replace this with an actual backend API call.`,
+        id: Date.now().toString(),
+        text: data.answer || data.response || data.message || "I couldn't find an answer.",
         sender: 'ai',
       };
+
       setMessages((prev) => [...prev, aiResponse]);
+    } catch (error) {
+      console.error('Error calling backend API:', error);
+      const errorResponse: Message = {
+        id: Date.now().toString(),
+        text: "Sorry, I encountered an error connecting to the server.",
+        sender: 'ai',
+      };
+      setMessages((prev) => [...prev, errorResponse]);
+    } finally {
       setIsLoading(false);
-    }, 1000);
+    }
   };
 
   return (

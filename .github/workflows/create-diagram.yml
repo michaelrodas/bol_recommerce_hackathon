@@ -1,0 +1,19 @@
+name: Create Diagram
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  visualize:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Update diagram
+        uses: githubocto/repo-visualizer@main
+        with:
+          output_file: "images/diagram.svg"
+          excluded_paths: "dist,node_modules,.idea,.github"
