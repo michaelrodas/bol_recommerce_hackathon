@@ -42,21 +42,19 @@ function App() {
     setIsLoading(true);
 
     try {
-      // TODO: Replace with your actual backend URL
-      const response = await fetch('http://localhost:8080/api/chat', {
+      // Use relative path to leverage the Vite proxy and avoid CORS
+      const response = await fetch('/api/chat', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        // TODO: Adjust the request payload structure based on your backend API
-        body: JSON.stringify({ prompt: userMessage.text }),
+        body: JSON.stringify({ question: userMessage.text }),
       });
 
       if (!response.ok) {
         throw new Error(`API error: ${response.statusText}`);
       }
 
-      // TODO: Adjust how you read the response data based on your backend API
       const data = await response.json();
 
       const aiResponse: Message = {
