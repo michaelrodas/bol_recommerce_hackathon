@@ -12,6 +12,9 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v2
 
+      - name: Create images directory
+        run: mkdir -p images
+
       - name: Update diagram
         uses: githubocto/repo-visualizer@main
         with:
