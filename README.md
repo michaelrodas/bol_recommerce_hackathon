@@ -80,8 +80,9 @@ The backend is a robust REST API that handles the business logic, document parsi
 Please refer to the respective directories for specific setup and execution instructions.
 
 ### Running it
-Run docker compose located in backend
-Run frontend from hackathon_frontend
-Run springboot application from backend
+1. Run docker compose located in backend
+2. Run frontend from hackathon_frontend
+3. Run springboot application from backend
 
-**Note:** Add knowledge base document via endpoint in backend
+**Note:** 
+4. Add knowledge base document via endpoint in backend
