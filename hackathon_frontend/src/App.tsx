@@ -6,6 +6,7 @@ interface Message {
   text: string;
   sender: 'user' | 'ai';
   sources?: string[];
+  responseTimeMs?: number;
 }
 
 function App() {
@@ -63,6 +64,7 @@ function App() {
         text: data.answer || data.response || data.message || "I couldn't find an answer.",
         sender: 'ai',
         sources: data.sources || [],
+        responseTimeMs: data.responseTimeMs,
       };
 
       setMessages((prev) => [...prev, aiResponse]);
@@ -90,6 +92,7 @@ function App() {
           <div key={message.id} className={`message-wrapper ${message.sender}`}>
             <div className={`message ${message.sender}`}>
               <div className="message-text">{message.text}</div>
+              
               {message.sources && message.sources.length > 0 && (
                 <div className="message-sources">
                   <strong>Sources:</strong>
@@ -98,6 +101,12 @@ function App() {
                       <li key={index}>{source}</li>
                     ))}
                   </ul>
+                </div>
+              )}
+
+              {message.responseTimeMs && (
+                <div className="message-timing">
+                  Generated in {(message.responseTimeMs / 1000).toFixed(2)}s
                 </div>
               )}
             </div>

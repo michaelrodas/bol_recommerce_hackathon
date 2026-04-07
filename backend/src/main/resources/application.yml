@@ -38,7 +38,7 @@ spring:
       max-request-size: 100MB
 
 rag:
-  top-k: 5   # number of chunks retrieved from the vector store per query
+  top-k: 3   # number of chunks retrieved from the vector store per query
 
 server:
   port: 8080

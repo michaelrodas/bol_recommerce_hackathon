@@ -38,7 +38,8 @@ class RagService(
             log.warn("No relevant documents found for query: $question")
             return RagResponse(
                 answer = "I could not find any relevant information in the knowledge base to answer your question.",
-                sources = emptyList()
+                sources = emptyList(),
+                responseTimeMs = 0
             )
         }
 
@@ -82,16 +83,18 @@ class RagService(
             --- END CONTEXT ---
         """.trimIndent()
 
+        val start = System.currentTimeMillis()
         val answer = chatClient.prompt()
             .system(systemPrompt)
             .user(question)
             .call()
             .content() ?: "No response generated."
+        val responseTimeMs = System.currentTimeMillis() - start
 
         val sources = hits.mapNotNull { it.metadata["source"] as? String }.distinct()
 
-        log.info("Answer generated from ${hits.size} chunks (sources: $sources)")
-        return RagResponse(answer = answer, sources = sources)
+        log.info("Answer generated from ${hits.size} chunks in ${responseTimeMs}ms (sources: $sources)")
+        return RagResponse(answer = answer, sources = sources, responseTimeMs = responseTimeMs)
     }
 }
 
@@ -100,5 +103,7 @@ data class RagResponse(
     @field:Schema(description = "LLM-generated answer grounded in the knowledge base")
     val answer: String,
     @field:Schema(description = "Filenames of the documents that contributed to the answer")
-    val sources: List<String>
+    val sources: List<String>,
+    @field:Schema(description = "LLM response time in milliseconds")
+    val responseTimeMs: Long
 )
