@@ -4,6 +4,58 @@ This repository contains the code for the Bol Recommerce Hackathon project. It i
 
 ![Visualization of the codebase](./images/diagram.svg)
 
+## Architecture Overview
+
+```mermaid
+graph TD
+    %% Define Styles
+    classDef frontend fill:#61DAFB,stroke:#333,stroke-width:2px,color:#000
+    classDef backend fill:#6DB33F,stroke:#333,stroke-width:2px,color:#fff
+    classDef ai fill:#FF9900,stroke:#333,stroke-width:2px,color:#000
+    classDef db fill:#336791,stroke:#333,stroke-width:2px,color:#fff
+    classDef client fill:#f9f9f9,stroke:#333,stroke-width:2px
+
+    %% Components
+    Client((User Browser)):::client
+    
+    subgraph Frontend [React Frontend / Vite]
+        UI["Chat Interface\n(React 19, TypeScript)"]:::frontend
+    end
+    
+    subgraph Backend [Spring Boot Backend]
+        API["REST Controllers\n(Kotlin, Spring Web)"]:::backend
+        RAG["RAG Service\n(Spring AI)"]:::backend
+        Ingest["Document Ingestion\n(PDF Reader)"]:::backend
+    end
+    
+    subgraph Models [Ollama Local LLMs]
+        LLM["Chat Model\n(e.g., qwen2.5)"]:::ai
+        Embed["Embedding Model\n(e.g., nomic-embed-text)"]:::ai
+    end
+    
+    subgraph Database [PostgreSQL]
+        PGV[(pgvector Database\nKnowledge Base)]:::db
+    end
+
+    %% Interactions
+    Client <-->|REST / JSON| UI
+    UI <-->|POST /api/chat| API
+    UI -->|POST /api/documents| API
+    
+    API <--> RAG
+    API --> Ingest
+    
+    %% RAG Flow
+    RAG <-->|Embed Query| Embed
+    RAG <-->|Similarity Search| PGV
+    RAG <-->|Prompt + Context| LLM
+    
+    %% Ingestion Flow
+    Ingest -->|PDF Chunks| Embed
+    Embed -->|Vectors| PGV
+
+```
+
 ## Tech Stack
 
 ### Frontend (`hackathon_frontend/`)
