@@ -1,0 +1,40 @@
+DESCRIPTION Returns Domain Assistant Architecture
+REQUIRES ArchUnit for Java/Kotlin components
+
+DEFINE SYSTEM Bol Recommerce Hackathon AS com.bol.recommerce
+
+    # AI and Vector Store integration domain
+    DEFINE DOMAIN Artificial Intelligence AS ai
+        DEFINE COMPONENT Local LLM Provider AS ollama
+        DEFINE COMPONENT Retrieval Augmented Generation AS rag
+        DEFINE COMPONENT Multimodal Processing AS vision
+
+    # Document management domain
+    DEFINE DOMAIN Knowledge Base AS knowledge
+        DEFINE COMPONENT PDF Ingestion AS ingestion
+        DEFINE COMPONENT Vector Embedding AS embedding
+        DEFINE COMPONENT Vector Storage AS pgvector
+
+    # Backend application domain
+    DEFINE DOMAIN Backend Services AS backend
+        DEFINE COMPONENT Chat API AS chat_controller
+        DEFINE COMPONENT Document API AS document_controller
+
+        # Business logic subdomain
+        DEFINE SUBDOMAIN Services AS services
+            DEFINE COMPONENT RAG Service AS rag_service
+            DEFINE COMPONENT Document Service AS document_service
+
+    # User interface domain
+    DEFINE DOMAIN Frontend AS frontend
+        DEFINE COMPONENT Chat Interface AS chat_ui
+        DEFINE COMPONENT Message Formatting AS message_ui
+
+# Architectural rules
+ASSERT(CLASSES are only CONTAINED WITHIN SUBDOMAINS within DOMAINS)
+ASSERT(frontend has NO DEPENDENCY on {ai, knowledge} except through backend)
+ASSERT(backend DOMAIN can only DEPEND ON ai and knowledge)
+
+FOREACH $component IN ai DOMAIN DO
+    ASSERT($component must log response times and sources)
+END
