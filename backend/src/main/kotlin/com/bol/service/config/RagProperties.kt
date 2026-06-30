@@ -5,5 +5,6 @@ import org.springframework.boot.context.properties.bind.DefaultValue
 
 @ConfigurationProperties(prefix = "rag")
 data class RagProperties(
-    @DefaultValue("5") val topK: Int
+    @DefaultValue("5") val topK: Int,
+    @DefaultValue("llava-phi3:3.8b") val visionModel: String
 )

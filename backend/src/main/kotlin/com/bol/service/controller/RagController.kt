@@ -6,7 +6,6 @@ import com.bol.service.service.RagService
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.media.Content
 import io.swagger.v3.oas.annotations.media.Schema
-import io.swagger.v3.oas.annotations.parameters.RequestBody as SwaggerRequestBody
 import io.swagger.v3.oas.annotations.responses.ApiResponse
 import io.swagger.v3.oas.annotations.tags.Tag
 import org.springframework.http.MediaType
@@ -46,11 +45,7 @@ class RagController(
 
     @Operation(
         summary = "Ask a question",
-        description = "Retrieves the most relevant document chunks from pgvector and uses the Ollama LLM to generate a grounded answer.",
-        requestBody = SwaggerRequestBody(
-            required = true,
-            content = [Content(schema = Schema(implementation = ChatRequest::class))]
-        ),
+        description = "Retrieves the most relevant document chunks from pgvector and uses the Ollama LLM to generate a grounded answer. Optionally attach an image for visual inspection of a returned item.",
         responses = [
             ApiResponse(
                 responseCode = "200",
@@ -59,18 +54,15 @@ class RagController(
             )
         ]
     )
-    @PostMapping("/chat")
-    fun chat(@RequestBody request: ChatRequest): ResponseEntity<RagResponse> {
-        val response = ragService.answer(request.question)
+    @PostMapping("/chat", consumes = [MediaType.MULTIPART_FORM_DATA_VALUE])
+    fun chat(
+        @RequestPart("question") question: String,
+        @RequestPart("image", required = false) image: MultipartFile?
+    ): ResponseEntity<RagResponse> {
+        val response = ragService.answer(question, image)
         return ResponseEntity.ok(response)
     }
 }
-
-@Schema(description = "Chat request payload")
-data class ChatRequest(
-    @field:Schema(description = "The question to ask the knowledge base", example = "What is the main topic of the document?")
-    val question: String
-)
 
 @Schema(description = "Result of a document ingestion request")
 data class UploadResponse(val results: List<UploadResult>)

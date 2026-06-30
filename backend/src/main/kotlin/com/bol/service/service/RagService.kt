@@ -6,7 +6,15 @@ import org.slf4j.LoggerFactory
 import org.springframework.ai.chat.client.ChatClient
 import org.springframework.ai.vectorstore.SearchRequest
 import org.springframework.ai.vectorstore.VectorStore
+import org.springframework.ai.ollama.api.OllamaOptions
+import org.springframework.core.io.ByteArrayResource
 import org.springframework.stereotype.Service
+import org.springframework.util.MimeType
+import org.springframework.web.multipart.MultipartFile
+import java.awt.RenderingHints
+import java.awt.image.BufferedImage
+import java.io.ByteArrayOutputStream
+import javax.imageio.ImageIO
 
 @Service
 class RagService(
@@ -15,27 +23,35 @@ class RagService(
     private val ragProperties: RagProperties
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
-
     private val chatClient: ChatClient = chatClientBuilder.build()
 
-    /**
-     * Answers a question using Retrieval-Augmented Generation:
-     * 1. Embed the question and retrieve the top-K most similar document chunks
-     * 2. Inject those chunks as context into a system prompt
-     * 3. Let the LLM generate a grounded answer
-     */
-    fun answer(question: String): RagResponse {
-        log.info("RAG query: \"$question\"")
+    fun answer(question: String, image: MultipartFile? = null): RagResponse {
+        log.info("RAG query: \"$question\" (image attached: ${image != null})")
 
+        // Prepare image bytes once so we don't re-read the stream later
+        val mimeType = image?.let { MimeType.valueOf(it.contentType ?: "image/jpeg") }
+        val imageBytes = image?.let { resizeImage(it.bytes, mimeType!!) }
+
+        // Step 1 — when a photo is provided, ask the model what it sees.
+        // The resulting description is merged into the vector search query so that
+        // pgvector retrieves SOP chunks relevant to BOTH the question and the
+        // actual physical state of the item, not just the text question alone.
+        val visualObservation = if (imageBytes != null && mimeType != null) {
+            describeImage(imageBytes, mimeType, image?.originalFilename, question)
+                .also { obs -> if (obs != null) log.info("Visual observation: $obs") }
+        } else null
+
+        // Step 2 — similarity search with the enriched query
+        val searchQuery = if (visualObservation != null) "$question\n$visualObservation" else question
         val hits = vectorStore.similaritySearch(
             SearchRequest.builder()
-                .query(question)
+                .query(searchQuery)
                 .topK(ragProperties.topK)
                 .build()
         ) ?: emptyList()
 
         if (hits.isEmpty()) {
-            log.warn("No relevant documents found for query: $question")
+            log.warn("No relevant SOP chunks found for: $question")
             return RagResponse(
                 answer = "I could not find any relevant information in the knowledge base to answer your question.",
                 sources = emptyList(),
@@ -43,58 +59,123 @@ class RagService(
             )
         }
 
+        // Step 3 — format retrieved SOP chunks with source attribution per chunk
+        log.debug("pgvector returned ${hits.size} chunks:")
+        hits.forEachIndexed { i, doc ->
+            val source = doc.metadata["source"] as? String ?: "unknown"
+            log.debug("  [${i + 1}] source=$source | score=${doc.score} | text=${doc.text?.take(240)}...")
+        }
+
         val context = hits.mapIndexed { i, doc ->
-            "[${i + 1}] ${doc.text}"
+            val source = doc.metadata["source"] as? String ?: "SOP"
+            "[${i + 1}] ($source)\n${doc.text}"
         }.joinToString("\n\n")
 
-//        print(context)
-        val systemPrompt = """
-            You are an expert Return Assessment Assistant for warehouse operators. Your job is to read convoluted Standard Operating Procedures (SOPs) and translate them into simple, direct, step-by-step instructions for the operator on the floor.
-
-            You will receive "CONTEXT" from the official return manual and a "User Question" from the operator.
-            
-            Follow these absolute rules:
-            1. NO OUTSIDE KNOWLEDGE: Base your instructions strictly on the CONTEXT. Do not invent policies or use outside knowledge.
-            2. BE DIRECT AND ACTIONABLE: Write in the imperative mood (e.g., "Inspect the screen", "Apply a red sticker").
-            3. NO FLUFF: Do not include conversational filler like "Based on the text..." or "Here are your instructions:". Start immediately with the first step.
-            4. FORMAT: Use short, numbered lists or bullet points for readability. Bold critical conditions (e.g., "IF the seal is broken").
-            5. MISSING INFO: If the CONTEXT does not contain the answer, do not guess. Output exactly: "No relevant instructions found in the SOP. Please escalate to your supervisor."
-            
-            ---
-            EXAMPLES:
-            
-            CONTEXT: "The packaging is opened if:
-            The original seal has been broken. The shrink wrap is partially broken and the item can be taken out or fall out. (Poly)bag is torn / opened. The seal is not original. There are bubbles or dirt underneath the seal or it is placed in a different position.
-            Note: Check for fraud if package opened: Guidelines FIC
-            
-            The packaging is not opened if: The original seal is still completely intact. The shrink wrap is partially broken, but the product cannot fall out or be taken out."
-            User Question: “There are bubbles under the seal of the package. Is it opened?”
-            Your Response:
-            Bubbles or dirt underneath the seal means that the packaging is opened.
-            
-            CONTEXT: "Articles cannot go to RGR if: Packaging is not original or damaged. Product is incomplete or damaged. Product has signs of usage that we can't remove: Food, oil, water or glue residues. Dirt in unreachable areas and/or other stains that you can't wipe away. Smell."
-            User Question: "Customer returned a blender and it smells like smoke. Is it suitable for RGR?"
-            Your Response:
-            No. Product has signs of usage that we can't remove.
-            ---
-
-            --- CONTEXT ---
-            $context
-            --- END CONTEXT ---
-        """.trimIndent()
-
+        // Step 4 — final LLM call (always text-only: visual context already captured in system prompt)
         val start = System.currentTimeMillis()
         val answer = chatClient.prompt()
-            .system(systemPrompt)
+            .system(buildSystemPrompt(context, visualObservation))
             .user(question)
             .call()
             .content() ?: "No response generated."
         val responseTimeMs = System.currentTimeMillis() - start
 
         val sources = hits.mapNotNull { it.metadata["source"] as? String }.distinct()
-
-        log.info("Answer generated from ${hits.size} chunks in ${responseTimeMs}ms (sources: $sources)")
+        log.info("Answer generated from ${hits.size} SOP chunks in ${responseTimeMs}ms (sources: $sources)")
         return RagResponse(answer = answer, sources = sources, responseTimeMs = responseTimeMs)
+    }
+
+    // Asks the model to describe what is visible in the photo, focused on the
+    // operator's question. The output feeds the RAG query in Step 2 and is also
+    // surfaced to the model again in the final prompt as a named section.
+    private fun describeImage(
+        imageBytes: ByteArray,
+        mimeType: MimeType,
+        filename: String?,
+        question: String
+    ): String? = try {
+        val resource = object : ByteArrayResource(imageBytes) {
+            override fun getFilename() = filename
+        }
+        log.info("Describing image with vision model: ${ragProperties.visionModel}")
+        chatClient.prompt()
+            .options(OllamaOptions.builder().model(ragProperties.visionModel).build())
+            .user { spec ->
+                spec.text(
+                    "You are inspecting a returned item in a warehouse. " +
+                    "The operator is asking: \"$question\"\n" +
+                    "Describe only what you can observe in the image that is relevant to answering this question. " +
+                    "Focus on: packaging condition, seal integrity, visible damage, signs of use, completeness. " +
+                    "Be concise and factual — 2 to 4 sentences. Do not speculate about what you cannot see."
+                )
+                spec.media(mimeType, resource)
+            }
+            .call()
+            .content()
+    } catch (e: Exception) {
+        log.warn("Image description step failed, proceeding text-only: ${e.message}")
+        null
+    }
+
+    private fun buildSystemPrompt(context: String, visualObservation: String?): String {
+        val visualSection = if (visualObservation != null) """
+
+            --- VISUAL OBSERVATION (photo of the returned item) ---
+            $visualObservation
+            --- END VISUAL OBSERVATION ---
+            """ else ""
+
+        val withImageRule = if (visualObservation != null)
+            "Cross-reference the VISUAL OBSERVATION with the SOP CONTEXT to reach a concrete decision about this specific item."
+        else
+            "Answer based solely on the SOP CONTEXT."
+
+        return """
+            You are a Return Assessment Assistant for warehouse operators.
+            Your job is to translate Standard Operating Procedures (SOPs) into clear, step-by-step actions that an operator can immediately follow on the floor.
+
+            You receive:
+            - SOP CONTEXT: Relevant excerpts from the official returns manual.
+            ${if (visualObservation != null) "- VISUAL OBSERVATION: What was observed in the attached photo of the returned item." else ""}
+            - The operator's question (in the user message).
+
+            Rules you must follow:
+            1. Base ALL decisions strictly on the SOP CONTEXT. Never use outside knowledge or invent policies.
+            2. $withImageRule
+            3. Write in the imperative mood. Be direct and actionable ("Inspect the seal", "Apply a red sticker").
+            4. Use numbered steps or bullet points. Bold critical conditions (**IF the seal is broken**).
+            5. Start immediately with the first action. No preamble, no filler phrases.
+            6. If the SOP CONTEXT does not cover the situation, output exactly: "No relevant instructions found in the SOP. Please escalate to your supervisor."
+            $visualSection
+            --- SOP CONTEXT ---
+            $context
+            --- END SOP CONTEXT ---
+        """.trimIndent()
+    }
+
+    // Downscales the image so its longest side is at most maxDimension pixels.
+    // Vision models tokenise images into patches; large images exhaust memory before inference starts.
+    private fun resizeImage(bytes: ByteArray, mimeType: MimeType, maxDimension: Int = 336): ByteArray {
+        val original: BufferedImage = ImageIO.read(bytes.inputStream()) ?: return bytes
+        val w = original.width
+        val h = original.height
+        if (w <= maxDimension && h <= maxDimension) return bytes
+
+        val scale = maxDimension.toDouble() / maxOf(w, h)
+        val nw = (w * scale).toInt()
+        val nh = (h * scale).toInt()
+
+        val resized = BufferedImage(nw, nh, BufferedImage.TYPE_INT_RGB)
+        val g = resized.createGraphics()
+        g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR)
+        g.drawImage(original, 0, 0, nw, nh, null)
+        g.dispose()
+
+        val format = if (mimeType.subtype.contains("png")) "PNG" else "JPEG"
+        val out = ByteArrayOutputStream()
+        ImageIO.write(resized, format, out)
+        log.info("Image resized from ${w}x${h} to ${nw}x${nh} (${bytes.size / 1024}KB → ${out.size() / 1024}KB)")
+        return out.toByteArray()
     }
 }
 

@@ -5,6 +5,7 @@ interface Message {
   id: string;
   text: string;
   sender: 'user' | 'ai';
+  imageUrl?: string;
   sources?: string[];
   responseTimeMs?: number;
 }
@@ -19,7 +20,10 @@ function App() {
   ]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -29,28 +33,53 @@ function App() {
     scrollToBottom();
   }, [messages]);
 
+  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (imagePreviewUrl) URL.revokeObjectURL(imagePreviewUrl);
+    setImageFile(file);
+    setImagePreviewUrl(URL.createObjectURL(file));
+    e.target.value = '';
+  };
+
+  const clearImage = () => {
+    if (imagePreviewUrl) URL.revokeObjectURL(imagePreviewUrl);
+    setImageFile(null);
+    setImagePreviewUrl(null);
+  };
+
+  const canSubmit = input.trim().length > 0 || imageFile !== null;
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!input.trim()) return;
+    if (!canSubmit || isLoading) return;
+
+    const questionText = input.trim() || 'Please assess this item based on the provided image.';
+    const sentImageUrl = imagePreviewUrl ?? undefined;
 
     const userMessage: Message = {
       id: Date.now().toString(),
-      text: input.trim(),
+      text: questionText,
       sender: 'user',
+      imageUrl: sentImageUrl,
     };
 
     setMessages((prev) => [...prev, userMessage]);
     setInput('');
+    setImageFile(null);
+    setImagePreviewUrl(null);
     setIsLoading(true);
 
     try {
-      // Use relative path to leverage the Vite proxy and avoid CORS
+      const formData = new FormData();
+      formData.append('question', questionText);
+      if (imageFile) {
+        formData.append('image', imageFile);
+      }
+
       const response = await fetch('/api/chat', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ question: userMessage.text }),
+        body: formData,
       });
 
       if (!response.ok) {
@@ -86,13 +115,16 @@ function App() {
       <header className="chat-header">
         <h1>Returns Domain Assistant</h1>
       </header>
-      
+
       <main className="chat-container">
         {messages.map((message) => (
           <div key={message.id} className={`message-wrapper ${message.sender}`}>
             <div className={`message ${message.sender}`}>
+              {message.imageUrl && (
+                <img src={message.imageUrl} alt="Attached" className="message-image" />
+              )}
               <div className="message-text">{message.text}</div>
-              
+
               {message.sources && message.sources.length > 0 && (
                 <div className="message-sources">
                   <strong>Sources:</strong>
@@ -114,8 +146,8 @@ function App() {
         ))}
         {isLoading && (
           <div className="message-wrapper ai">
-             <div className="message ai typing-indicator">
-               <span></span><span></span><span></span>
+            <div className="message ai typing-indicator">
+              <span></span><span></span><span></span>
             </div>
           </div>
         )}
@@ -123,16 +155,40 @@ function App() {
       </main>
 
       <footer className="input-container">
+        {imagePreviewUrl && (
+          <div className="image-preview-container">
+            <img src={imagePreviewUrl} alt="Preview" className="image-preview" />
+            <button type="button" onClick={clearImage} className="image-preview-remove" title="Remove image">
+              ×
+            </button>
+          </div>
+        )}
         <form onSubmit={handleSubmit} className="input-form">
+          <input
+            type="file"
+            accept="image/*"
+            ref={fileInputRef}
+            onChange={handleImageSelect}
+            className="file-input-hidden"
+          />
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            className="attach-button"
+            disabled={isLoading}
+            title="Attach an image"
+          >
+            📎
+          </button>
           <input
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder="Ask a question about warehouse returns..."
+            placeholder="Ask a question or attach an image of the item..."
             className="chat-input"
             disabled={isLoading}
           />
-          <button type="submit" disabled={!input.trim() || isLoading} className="send-button">
+          <button type="submit" disabled={!canSubmit || isLoading} className="send-button">
             Send
           </button>
         </form>

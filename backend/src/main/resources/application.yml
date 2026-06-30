@@ -16,8 +16,9 @@ spring:
       base-url: ${OLLAMA_BASE_URL:http://localhost:11434}
       chat:
         options:
-          model: qwen2.5:3b-instruct         # change to any model you have pulled
-          temperature: 0.8         # low temperature for factual answers
+          model: qwen2.5:3b-instruct  # text model: strong instruction-following for final SOP answers
+          temperature: 0.8         # low temperature for deterministic warehouse instructions
+          num-ctx: 4096            # cap KV cache to limit memory allocation
       embedding:
         options:
           model: nomic-embed-text  # 768-dim embedding model
@@ -38,7 +39,8 @@ spring:
       max-request-size: 100MB
 
 rag:
-  top-k: 3   # number of chunks retrieved from the vector store per query
+  top-k: 3                          # number of SOP chunks retrieved per query
+  vision-model: llava-phi3:3.8b     # model used only for image description (Step 1)
 
 server:
   port: 8080
