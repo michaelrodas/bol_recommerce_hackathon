@@ -110,7 +110,8 @@ services:
       PDF_PATH: handbook.pdf
       TOPK: "3"
       PAGE_OFFSET: "0"
-    command: sh -c "pip install -q -r requirements.txt && python harness.py"
+    entrypoint: ["sh", "-c", "pip install -q -r requirements.txt && exec \"$@\"", "--"]
+    command: ["python", "harness.py"]
     depends_on:
       - backend
 
