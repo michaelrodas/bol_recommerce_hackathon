@@ -40,7 +40,7 @@ spring:
 
 rag:
   top-k: 3                          # number of SOP chunks retrieved per query
-  similarity-threshold: 0.6         # minimum cosine similarity score for retrieved chunks
+  similarity-threshold: 0.66        # minimum cosine similarity score for retrieved chunks
   vision-model: llava-phi3:3.8b     # model used only for image description (Step 1)
 
 server:
