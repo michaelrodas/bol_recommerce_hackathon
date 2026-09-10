@@ -93,7 +93,7 @@ class RagService(
         val builder = SearchRequest.builder()
             .query(query)
             .topK(topK ?: ragProperties.topK)
-        threshold?.let { builder.similarityThreshold(it) }
+        builder.similarityThreshold(threshold ?: ragProperties.similarityThreshold)
         return vectorStore.similaritySearch(builder.build()) ?: emptyList()
     }
 
