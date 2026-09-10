@@ -1,0 +1,12 @@
+# Build artifacts
+backend/target/
+hackathon_frontend/node_modules/
+hackathon_frontend/dist/
+
+# OS
+.DS_Store
+
+# Eval
+eval/handbook.pdf
+eval/__pycache__/
+eval/results.csv

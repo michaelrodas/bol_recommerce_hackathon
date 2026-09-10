@@ -23,20 +23,20 @@ services:
       - "11434:11434"
     volumes:
       - ollama_data:/root/.ollama
+    # Default image entrypoint already runs `ollama serve`.
     healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://localhost:11434/api/tags || exit 1"]
+      test: ["CMD-SHELL", "ollama list || exit 1"]
       interval: 30s
       timeout: 30s
       retries: 5
-      start_period: 120s
-    entrypoint: ["/bin/sh", "-c", "ollama serve & sleep 5 && ollama pull qwen2.5vl:3b && wait"]
+      start_period: 60s
     deploy:
       resources:
         limits:
           memory: 12G
 
-##llava-phi3:3.8b
-  # One-shot service that pulls the required models once Ollama is healthy
+  # One-shot: pulls the three models the app ACTUALLY uses (see application.yml
+  # chat=qwen2.5:3b-instruct, vision=llava-phi3:3.8b, embedding=nomic-embed-text).
   ollama-init:
     image: ollama/ollama:latest
     container_name: localrag-ollama-init
@@ -45,12 +45,78 @@ services:
         condition: service_healthy
     entrypoint: >
       /bin/sh -c "
-        ollama pull llama3.2 &&
+        ollama pull qwen2.5:3b-instruct &&
+        ollama pull llava-phi3:3.8b &&
         ollama pull nomic-embed-text
       "
     environment:
       - OLLAMA_HOST=http://ollama:11434
     restart: "no"
+
+  # Spring Boot backend, built from source in-container (no JDK/Maven on host).
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: localrag-backend
+    ports:
+      - "8080:8080"
+    environment:
+      # Override the localhost defaults baked into application.yml so the
+      # container reaches the other services by their compose hostnames.
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/ragdb
+      OLLAMA_BASE_URL: http://ollama:11434
+    depends_on:
+      postgres:
+        condition: service_healthy
+      ollama:
+        condition: service_healthy
+      ollama-init:
+        condition: service_completed_successfully
+
+  # Vite dev server, run in a node container (no Node/npm on host).
+  frontend:
+    image: node:20-alpine
+    container_name: localrag-frontend
+    working_dir: /app
+    command: sh -c "npm install && npm run dev -- --host 0.0.0.0"
+    environment:
+      # Consumed by vite.config.ts proxy target.
+      BACKEND_URL: http://backend:8080
+    ports:
+      - "5173:5173"
+    volumes:
+      - ../hackathon_frontend:/app
+      - /app/node_modules
+    depends_on:
+      - backend
+
+  # Retrieval eval harness (Python, detached). Run on demand:
+  #   docker compose --profile eval run --rm eval python seed.py   # seed once
+  #   docker compose --profile eval run --rm eval                  # run eval
+  eval:
+    image: python:3.12-slim
+    profiles: ["eval"]
+    working_dir: /app
+    volumes:
+      - ../eval:/app
+      # apply_config.py writes the tuned values into application.yml (bind mount -> host)
+      - ../backend/src/main/resources:/appconfig
+    environment:
+      BACKEND_URL: http://backend:8080
+      APP_YML: /appconfig/application.yml
+      PGHOST: postgres
+      PGPORT: "5432"
+      PGDATABASE: ragdb
+      PGUSER: postgres
+      PGPASSWORD: postgres
+      PDF_PATH: handbook.pdf
+      TOPK: "3"
+      PAGE_OFFSET: "0"
+    entrypoint: ["sh", "-c", "pip install -q -r requirements.txt && exec \"$@\"", "--"]
+    command: ["python", "harness.py"]
+    depends_on:
+      - backend
 
 volumes:
   pgdata:

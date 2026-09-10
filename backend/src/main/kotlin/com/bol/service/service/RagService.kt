@@ -4,6 +4,7 @@ import com.bol.service.config.RagProperties
 import io.swagger.v3.oas.annotations.media.Schema
 import org.slf4j.LoggerFactory
 import org.springframework.ai.chat.client.ChatClient
+import org.springframework.ai.document.Document
 import org.springframework.ai.vectorstore.SearchRequest
 import org.springframework.ai.vectorstore.VectorStore
 import org.springframework.ai.ollama.api.OllamaOptions
@@ -43,12 +44,7 @@ class RagService(
 
         // Step 2 — similarity search with the enriched query
         val searchQuery = if (visualObservation != null) "$question\n$visualObservation" else question
-        val hits = vectorStore.similaritySearch(
-            SearchRequest.builder()
-                .query(searchQuery)
-                .topK(ragProperties.topK)
-                .build()
-        ) ?: emptyList()
+        val hits = retrieve(searchQuery)
 
         if (hits.isEmpty()) {
             log.warn("No relevant SOP chunks found for: $question")
@@ -83,6 +79,22 @@ class RagService(
         val sources = hits.mapNotNull { it.metadata["source"] as? String }.distinct()
         log.info("Answer generated from ${hits.size} SOP chunks in ${responseTimeMs}ms (sources: $sources)")
         return RagResponse(answer = answer, sources = sources, responseTimeMs = responseTimeMs)
+    }
+
+    /**
+     * Pure retrieval step — embeds [query] and returns the top matching chunks from
+     * pgvector. Shared by [answer] and the /api/retrieve eval endpoint so both exercise
+     * the exact same retrieval path (no drift between prod and eval).
+     *
+     * @param topK number of chunks to return; defaults to the configured value.
+     * @param threshold optional minimum similarity; when null, all topK are returned.
+     */
+    fun retrieve(query: String, topK: Int? = null, threshold: Double? = null): List<Document> {
+        val builder = SearchRequest.builder()
+            .query(query)
+            .topK(topK ?: ragProperties.topK)
+        builder.similarityThreshold(threshold ?: ragProperties.similarityThreshold)
+        return vectorStore.similaritySearch(builder.build()) ?: emptyList()
     }
 
     // Asks the model to describe what is visible in the photo, focused on the

@@ -1,0 +1,147 @@
+# Retrieval golden set — WI BRC Processing Returns (180p, single fixed corpus)
+# expected_pages = printed "Page N of 180" == Spring AI chunk metadata page_number
+#   (verify offset once: run harness, check a known case; shift PAGE_OFFSET if needed)
+# expected_keyword = optional; required only on multi-topic pages to avoid over-credit
+# category: covered     -> expected_pages must appear in topK
+#           not_covered -> retrieval should return nothing under a threshold (the #1 trust test)
+
+cases:
+  # --- packaging / product assessment (General Guidelines) ---
+  - id: packaging-not-original
+    question: "When is the packaging considered not original?"
+    expected_pages: [23]        # 2.1 Packaging not original
+    expected_keyword: "original"
+    category: covered
+
+  - id: seal-broken-opened
+    question: "The original seal on the box is broken. Is the packaging counted as opened?"
+    expected_pages: [24]        # 2.2 Packaging opened
+    expected_keyword: "seal"
+    category: covered
+
+  - id: outer-tear-3cm
+    question: "There is a 3 cm tear on the outer packaging. Is the packaging damaged?"
+    expected_pages: [25]        # 2.3 Packaging damaged: tears > 2cm
+    expected_keyword: "tear"
+    category: covered
+
+  - id: product-used-signs
+    question: "How do I decide if a product shows signs of usage?"
+    expected_pages: [29]        # 3.2 Product used
+    expected_keyword: "used"
+    category: covered
+
+  - id: inflatable-exception
+    question: "What is the exception for used assessment on inflatable items?"
+    expected_pages: [30]        # 3.2.1 Exceptions product used: Inflatable
+    expected_keyword: "inflatable"
+    category: covered
+
+  - id: not-suitable-rgr
+    question: "Which articles are NOT suitable for RGR?"
+    expected_pages: [33]        # 4.1 NOT suitable for RGR
+    expected_keyword: "RGR"
+    category: covered
+
+  - id: applecare-check
+    question: "How do I check AppleCare coverage on an Apple device?"
+    expected_pages: [36]        # A1 Check AppleCare coverage
+    expected_keyword: "AppleCare"
+    category: covered
+
+  # --- safety ---
+  - id: broken-glass-unsafe
+    question: "I hear broken glass inside a box. How do I handle this unsafe package?"
+    expected_pages: [11]        # 4.3 Recognize unsafe package
+    expected_keyword: "glass"
+    category: covered
+
+  # --- scrap / exceptions ---
+  - id: pan-broken-handle
+    question: "A returned pan has a broken handle. What do I do with it?"
+    expected_pages: [46]        # Pan broken handle -> Scrap
+    expected_keyword: "pan"
+    category: covered
+
+  - id: pet-food
+    question: "How do I process returned pet food?"
+    expected_pages: [47]        # 2.2 Pet food
+    expected_keyword: "pet food"
+    category: covered
+
+  - id: data-cards-scrap
+    question: "How do I process empty Nintendo game cartridges and memory cards?"
+    expected_pages: [91]        # 4.1 Data cards -> Scrap
+    expected_keyword: "Scrap"
+    category: covered
+
+  - id: batteries-processing
+    question: "How must batteries be processed?"
+    expected_pages: [92]        # 4.3 Batteries
+    expected_keyword: "batter"
+    category: covered
+
+  # --- books ---
+  - id: book-check-fraud
+    question: "When must a returned book go to the Fraud Investigation Corner?"
+    expected_pages: [68]        # 1 Check for fraud
+    expected_keyword: "fraud"
+    category: covered
+
+  - id: book-missing-pages
+    question: "A returned book has loose or missing pages. How is it graded?"
+    expected_pages: [72]        # 2.7 Unacceptable damages
+    expected_keyword: "pages"
+    category: covered
+
+  # --- fashion ---
+  - id: fashion-stains
+    question: "How do I grade stains on a fashion item?"
+    expected_pages: [77]        # 1.4 Stains
+    expected_keyword: "stain"
+    category: covered
+
+  # --- RGR resets ---
+  - id: reset-smart-plug
+    question: "How do I reset a smart plug to factory settings?"
+    expected_pages: [114]       # 1.5.2 Reset Smart Plugs
+    expected_keyword: "plug"
+    category: covered
+
+  - id: reset-wifi-router
+    question: "How do I reset a Wi-Fi router before RGR?"
+    expected_pages: [115]       # 1.5.5 Reset Wi-Fi Routers
+    expected_keyword: "router"
+    category: covered
+
+  - id: reset-jbl-speaker
+    question: "How do I reset a JBL speaker with Google Assistant?"
+    expected_pages: [125]       # 1.2.2 Reset JBL-speaker
+    expected_keyword: "JBL"
+    category: covered
+
+  # --- lost post / reparation ---
+  - id: bpost-lost-post
+    question: "Where does BPost lost post go?"
+    expected_pages: [153]       # BPost -> BPost roll container
+    expected_keyword: "BPost"
+    category: covered
+
+  - id: reparation-identify
+    question: "How do I identify a Repair vs Return-on-Return item?"
+    expected_pages: [159]       # 2.2 Identify Repair and Return on Return
+    expected_keyword: "repair"
+    category: covered
+
+  # --- negatives: NOT in the handbook -> should return nothing under a threshold ---
+  - id: neg-live-animals
+    question: "What is the return procedure for live animals or plants?"
+    category: not_covered
+
+  - id: neg-vacation-days
+    question: "How many vacation days do warehouse operators get?"
+    category: not_covered
+
+  - id: neg-wifi-password
+    question: "What is the guest Wi-Fi password for the office?"
+    category: not_covered
