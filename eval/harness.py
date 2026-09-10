@@ -28,10 +28,11 @@ def load_cases(path: str = "retrieval.yaml") -> list:
         return yaml.safe_load(f)["cases"]
 
 
-def retrieve(query: str, topk: int = TOPK, threshold: float | None = None) -> list:
-    body: dict = {"query": query, "topK": topk}
-    if threshold is not None:
-        body["threshold"] = threshold
+def retrieve(query: str, topk: int = TOPK, threshold: float = 0.0) -> list:
+    # Always send an explicit threshold so eval sees RAW scores. The backend's
+    # retrieve() defaults a missing threshold to the prod config value, which would
+    # hide every chunk below it and blind the sweep to lower thresholds.
+    body: dict = {"query": query, "topK": topk, "threshold": threshold}
     resp = requests.post(f"{BACKEND}/api/retrieve", json=body, timeout=120)
     resp.raise_for_status()
     return resp.json()["results"]
