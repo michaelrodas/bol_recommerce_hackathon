@@ -144,6 +144,39 @@ Results print as a table and are written to `eval/results.csv`.
 The `eval/` harness measures **and** tunes retrieval quality against a golden set of
 warehouse questions, exercising the real retrieval pipeline (not a reimplementation).
 
+### How eval and the app connect
+
+The **offline** side does all the messy, slow, non-deterministic work (embeddings,
+scoring, grid-searching thresholds) and distills it into a small **artifact**. The
+**online** app never runs eval — it just reads two tuned numbers and serves users.
+
+```mermaid
+flowchart LR
+    subgraph offline["OFFLINE — eval (run on demand, needs models)"]
+        gold["retrieval.yaml<br/>(golden set)"]
+        corpus[("pgvector<br/>corpus")]
+        sweep["sweep.py<br/>grid-search k x threshold"]
+        apply["apply_config.py"]
+        gold --> sweep
+        corpus --> sweep
+        sweep --> artifact[["best-vdb-config.yml<br/>best-k + similarity-threshold"]]
+        artifact --> apply
+    end
+
+    apply -->|writes 2 values| cfg["application.yml<br/>rag.top-k / similarity-threshold"]
+
+    subgraph online["ONLINE — app (serves operators, fast + simple)"]
+        user((Operator)) -->|question| answer["RagService.answer()"]
+        cfg --> answer
+        answer --> out["grounded answer<br/>or escalate"]
+    end
+```
+
+The artifact (`best-vdb-config.yml`) is the **only** handoff. The app stays oblivious to
+golden sets, similarity scores, and sweeps — it consumes `top-k` and `similarity-threshold`
+and nothing else. Retune whenever the corpus or models change by re-running the offline
+loop; production is never bothered by the technicalities of how the numbers were found.
+
 **`POST /api/retrieve`** runs only the retrieval step (no LLM) and returns the matching
 chunks with `page`, `source`, `score`, and `text`. Both `RagService.answer()` and the
 harness call the same `retrieve()` method, so eval measures exactly what production does.
