@@ -100,8 +100,11 @@ services:
     working_dir: /app
     volumes:
       - ../eval:/app
+      # apply_config.py writes the tuned values into application.yml (bind mount -> host)
+      - ../backend/src/main/resources:/appconfig
     environment:
       BACKEND_URL: http://backend:8080
+      APP_YML: /appconfig/application.yml
       PGHOST: postgres
       PGPORT: "5432"
       PGDATABASE: ragdb

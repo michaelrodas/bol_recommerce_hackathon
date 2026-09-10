@@ -42,6 +42,7 @@ rag:
   top-k: 3                          # number of SOP chunks retrieved per query
   vision-model: llava-phi3:3.8b     # model used only for image description (Step 1)
 
+  similarity-threshold: 0.66
 server:
   port: 8080
 
