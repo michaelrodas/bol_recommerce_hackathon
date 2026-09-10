@@ -43,7 +43,6 @@ rag:
   similarity-threshold: 0.6         # minimum cosine similarity score for retrieved chunks
   vision-model: llava-phi3:3.8b     # model used only for image description (Step 1)
 
-  similarity-threshold: 0.66
 server:
   port: 8080
 
