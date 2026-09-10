@@ -138,3 +138,42 @@ docker compose --profile eval run --rm eval python seed.py   # reset DB + ingest
 docker compose --profile eval run --rm eval                  # run eval -> recall@k, MRR, score gap
 ```
 Results print as a table and are written to `eval/results.csv`.
+
+## Retrieval quality: eval & auto-tuning
+
+The `eval/` harness measures **and** tunes retrieval quality against a golden set of
+warehouse questions, exercising the real retrieval pipeline (not a reimplementation).
+
+**`POST /api/retrieve`** runs only the retrieval step (no LLM) and returns the matching
+chunks with `page`, `source`, `score`, and `text`. Both `RagService.answer()` and the
+harness call the same `retrieve()` method, so eval measures exactly what production does.
+
+### Golden set — `eval/retrieval.yaml`
+Hand-curated cases:
+- **covered** — a question whose answer lives on a known handbook page (`expected_pages`,
+  plus an optional `expected_keyword` for pages that mix topics).
+- **not_covered** (negatives) — questions the handbook does not answer; retrieval should
+  return nothing so the assistant escalates instead of inventing a policy.
+
+### Measure — `harness.py`
+Prints `recall@k`, `MRR`, and the covered-vs-negative score gap; writes `eval/results.csv`.
+
+### Tune — `sweep.py` → `best-vdb-config.yml`
+Grid-searches `(top-k, similarity-threshold)` for the config that best separates covered
+from not-covered cases. Objective: maximise recall while rejecting at least
+`REJECT_TARGET` (default: all) of the negatives; ties break toward a smaller `k` and a
+higher, safer threshold. Produces:
+```yaml
+best-k: 3
+similarity-threshold: 0.66
+```
+
+### Apply — `apply_config.py` → `application.yml`
+Writes the tuned `rag.top-k` and `rag.similarity-threshold` back into
+`backend/src/main/resources/application.yml` (comments preserved); restart the backend to
+load them. At query time, chunks scoring below the threshold are dropped — and if nothing
+survives, the assistant escalates rather than answering from weak matches.
+
+The eval → sweep → apply loop lets you retune whenever the knowledge base or models change,
+turning retrieval configuration into a measured decision instead of a guess. Full commands
+and tuning knobs: [`eval/README.md`](./eval/README.md).
