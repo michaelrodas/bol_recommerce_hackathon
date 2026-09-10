@@ -62,6 +62,31 @@ class RagController(
         val response = ragService.answer(question, image)
         return ResponseEntity.ok(response)
     }
+
+    @Operation(
+        summary = "Retrieve raw chunks (debug / eval)",
+        description = "Runs ONLY the retrieval step and returns matching chunks with page number, source, similarity score and text. Used by the retrieval eval harness; not part of the chat flow.",
+        responses = [
+            ApiResponse(
+                responseCode = "200",
+                description = "Matching chunks",
+                content = [Content(schema = Schema(implementation = RetrieveResponse::class))]
+            )
+        ]
+    )
+    @PostMapping("/retrieve")
+    fun retrieve(@RequestBody request: RetrieveRequest): ResponseEntity<RetrieveResponse> {
+        val docs = ragService.retrieve(request.query, request.topK, request.threshold)
+        val results = docs.map { doc ->
+            RetrieveResult(
+                page = (doc.metadata["page_number"] as? Number)?.toInt(),
+                source = doc.metadata["source"] as? String,
+                score = doc.score,
+                text = doc.text
+            )
+        }
+        return ResponseEntity.ok(RetrieveResponse(count = results.size, results = results))
+    }
 }
 
 @Schema(description = "Result of a document ingestion request")
@@ -73,4 +98,25 @@ data class UploadResult(
     val filename: String,
     @field:Schema(description = "Number of chunks stored in pgvector", example = "42")
     val chunks: Int
+)
+
+@Schema(description = "Retrieval-only request")
+data class RetrieveRequest(
+    @field:Schema(description = "Query to embed and search") val query: String,
+    @field:Schema(description = "Chunks to return (defaults to configured top-k)") val topK: Int? = null,
+    @field:Schema(description = "Optional minimum similarity (0-1); omit to accept all") val threshold: Double? = null
+)
+
+@Schema(description = "A single retrieved chunk")
+data class RetrieveResult(
+    val page: Int?,
+    val source: String?,
+    val score: Double?,
+    val text: String?
+)
+
+@Schema(description = "Retrieval-only response")
+data class RetrieveResponse(
+    val count: Int,
+    val results: List<RetrieveResult>
 )

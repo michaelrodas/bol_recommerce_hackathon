@@ -1,0 +1,5 @@
+requests
+pyyaml
+psycopg2-binary
+pandas
+tabulate

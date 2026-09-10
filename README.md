@@ -86,3 +86,55 @@ Please refer to the respective directories for specific setup and execution inst
 
 **Note:** 
 4. Add knowledge base document via endpoint in backend
+
+## Run with Docker (from scratch)
+
+The whole stack (Postgres/pgvector, Ollama, backend, frontend) runs via Docker Compose — no JDK, Node, or Ollama needed on the host.
+
+### 1. Build & start everything
+```bash
+cd backend
+docker compose up -d --build
+```
+The first run downloads ~5 GB of Ollama models (`qwen2.5:3b-instruct`, `llava-phi3:3.8b`, `nomic-embed-text`) and builds the backend, so it takes a while — the backend only starts after the models finish pulling.
+
+To start **truly** from scratch (drops the DB **and** the downloaded models):
+```bash
+docker compose down -v
+docker compose up -d --build
+```
+
+Watch until all services are healthy:
+```bash
+docker compose ps
+```
+
+- Frontend UI: http://localhost:5173
+- Backend / Swagger UI: http://localhost:8080/swagger-ui.html
+
+### 2. Upload the knowledge-base PDF (Swagger)
+1. Open http://localhost:8080/swagger-ui.html
+2. `POST /api/documents` → **Try it out** → select your PDF for `files` → **Execute**.
+
+Verify a single clean copy was ingested:
+```bash
+docker exec localrag-postgres psql -U postgres -d ragdb -c "SELECT count(*) FROM vector_store;"
+```
+Re-uploading the same PDF **appends** duplicate chunks (which skews retrieval) — truncate the table or use the eval seed (below) before re-uploading.
+
+### 3. Start a chat
+- In the UI (http://localhost:5173), type a question — optionally attach a photo of the item — and send; or
+- via curl:
+```bash
+curl -s -F "question=The seal on the box is broken. What do I do?" http://localhost:8080/api/chat
+```
+The response contains the grounded `answer`, the source filenames (`sources`), and `responseTimeMs`.
+
+### 4. Test the retrieval eval
+The retrieval eval harness lives in `eval/` (details in [`eval/README.md`](./eval/README.md)). Copy the handbook PDF to `eval/handbook.pdf` first (gitignored).
+```bash
+cd backend
+docker compose --profile eval run --rm eval python seed.py   # reset DB + ingest one clean copy
+docker compose --profile eval run --rm eval                  # run eval -> recall@k, MRR, score gap
+```
+Results print as a table and are written to `eval/results.csv`.
