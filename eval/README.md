@@ -11,6 +11,7 @@ golden set of questions, over the real pipeline (via `POST /api/retrieve`).
 ## Prerequisites
 1. `docker compose up` (from `backend/`) healthy.
 2. Copy the handbook PDF to `eval/handbook.pdf` (gitignored).
+3. Run the following Docker commands from the `backend` folder
 
 ## Run
 ```bash
